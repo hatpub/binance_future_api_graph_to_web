@@ -9,14 +9,8 @@ from dash.dependencies import Input, Output, State
 import pymysql
 import time
 from data_config import *
-import dash_bootstrap_components as dbc
-# from flask import request, make_response
-# import requests
-#import bot
-
-
-#b = bot.Bot(token=TELEGRAM_TOKEN)
-
+from flask import request, make_response
+import requests
 
 # DB connect function
 def db_con():
@@ -108,25 +102,15 @@ def tline_insert(sbl, rod, gname, fr_dt, fr_pc, to_dt, to_pc, is_extension):
                     values (%s)""" % (tline, "%s, %s, %s, %s, %s, %s, %s, %s")
     curs = db.cursor()
     curs.execute(sql, (sbl, rod, gname, fr_dt, fr_pc, to_dt, to_pc, is_extension))
-    if tline == tline_1:
-        sql_bak = """insert into %s(symbol, rods, gname, fr_dt, fr_pc, to_dt, to_pc, is_extension)
-                        values (%s)""" % ('tline_bak', "%s, %s, %s, %s, %s, %s, %s, %s")
-        curs.execute(sql_bak, (sbl, rod, gname, fr_dt, fr_pc, to_dt, to_pc, is_extension))
-        sql_kk = """insert into %s(symbol, rods, gname, fr_dt, fr_pc, to_dt, to_pc, is_extension)
-                        values (%s)""" % (tline_a, "%s, %s, %s, %s, %s, %s, %s, %s")
-        curs.execute(sql_kk, (sbl, rod, gname, fr_dt, fr_pc, to_dt, to_pc, is_extension))
     db.commit()
     db.close()
 
 # trend line delete function
 def tline_delete(sbl, rod, gname):
     db = db_con()
-    curs = db.cursor()
     sql = """delete from %s where symbol ='%s' and rods = '%s' and gname = '%s'""" %(tline, sbl, rod, gname)
+    curs = db.cursor()
     curs.execute(sql)
-    if tline == tline_1:
-        sql = """delete from %s where symbol ='%s' and rods = '%s' and gname = '%s'""" %(tline_a, sbl, rod, gname)
-        curs.execute(sql)
     db.commit()
     db.close()
 
@@ -187,34 +171,17 @@ def trading_list_query(sbl, rod, is_complete):
     row_lists = list()
 
     for row in rows:
-        row_lists.append({'gn':row[3], 'tm':row[4], 'bs':('Buy' if row[4] == 'breakthrough' else 'Sell'), 'lm':row[6], 'sp':row[10], 'qt':row[7], 'num':row[0]})
+        row_lists.append({'gn':row[3], 'tm':row[4], 'bs':row[5], 'lm':row[6], 'qt':row[7], 'num':row[0]})
 
     return row_lists
 
 # trading insert function
-def trading_insert(sbl, rod, gname, timing, slippage, pctype, qty):
+def trading_insert(sbl, rod, gname, timing, tdtype, pctype, qty):
     db = db_con()
-    sql = """insert into %s(symbol, rods, gname, timing, slippage, pctype, qty)
+    sql = """insert into %s(symbol, rods, gname, timing, tdtype, pctype, qty)
                     values (%s)"""  % (trading, "%s, %s, %s, %s, %s, %s, %s")
     curs = db.cursor()
-    if pctype == 'market':
-        curs.execute(sql, (sbl, rod, gname, timing, 0, pctype, qty))
-    else:
-        curs.execute(sql, (sbl, rod, gname, timing, slippage, pctype, qty))
-    
-    msg = '[거래등록] '+ rod+'/'+gname +' / '+ ('상향돌파 ' if timing == 'breakthrough' else '하향돌파 ') +' / '+ ('지정가 ' if pctype == 'limit' else '시장가 ') +' / '+ str(qty)+'btc'
-    
-    if tline == tline_1:
-        #for chat_id in chat_ids:
-        #    b.sendMessage(chat_id=chat_id, text=msg)
-        
-        sql = """insert into %s(symbol, rods, gname, timing, slippage, pctype, qty)
-                    values (%s)"""  % (trading_a, "%s, %s, %s, %s, %s, %s, %s")
-        if pctype == 'market':
-            curs.execute(sql, (sbl, rod, gname, timing, 0, pctype, qty))
-        else:
-            curs.execute(sql, (sbl, rod, gname, timing, slippage, pctype, qty))
-
+    curs.execute(sql, (sbl, rod, gname, timing, tdtype, pctype, qty))
     db.commit()
     db.close()
 
@@ -223,77 +190,30 @@ def trading_delete(open_rows, sbl, rod):
     # [{'gn': 'b', 'tm': 'breakthrough', 'bs': 'buy', 'lm': 'limits', 'qt': 1}, {'gn': 'c', 'tm': 'breakthrough', 'bs': 'buy', 'lm': 'limits', 'qt': 11}]
     row_lists = list()
     for row in open_rows:
-        row_lists.append((row['gn'], row['tm'], row['lm'], row['num']))
+        row_lists.append((row['gn'], row['tm'], row['bs'], row['lm'], row['num']))
     row_tuple = tuple(row_lists)
     
     db = db_con()
     curs = db.cursor()
 
-    sql = """select gname, timing, pctype, num from %s where symbol = '%s' and rods = '%s' and is_complete = 0""" % (trading, sbl, rod)
+    sql = """select gname, timing, tdtype, pctype, num from %s where symbol = '%s' and rods = '%s' and is_complete = 0""" % (trading, sbl, rod)
     curs.execute(sql)
     rows = curs.fetchall()
     
     diff_rows = tuple(set(rows) ^ set(row_tuple))
 
     if len(diff_rows) == 1:
-        sql = """delete from %s where num = '%s'""" % (trading, diff_rows[0][3])
+        sql = """delete from %s where num = '%s'""" % (trading, diff_rows[0][4])
         curs.execute(sql)
-        if tline == tline_1:
-            sql = """delete from %s where num = '%s'""" % (trading_a, diff_rows[0][3])
-            curs.execute(sql)
+
         db.commit()
-    db.close()
-
-def insert_check(sbl, rod, v1, v2, gname):
-
-    if len(v1) != 12 or len(v2) != 12:
-        msg = 'Date Time'
-        link = 'frdate'
-        return (0, msg, link)
-
-    db = db_con()
-    curs = db.cursor()
-    sql = """select 1 from %s where symbol = '%s' and rods = '%s' and gname = '%s' limit 1""" % (tline, sbl, rod, gname)
-    msg = ''
-    link = ''
-
-    try:
-        curs.execute(sql)
-        gnm_chk = 0 if curs.fetchone()[0] == 1 else 1
-        msg = 'Graph Name'
-        link = 'button'
-    except:
-        gnm_chk = 1
-    db.close()
-    
-    try:
-        dt_1 = datetime(year=int(v1[:4]), month=int(v1[4:6]), day=int(v1[6:8]), hour=int(v1[8:10]), minute=int(v1[10:12]))
-    except:
-        dt_chk = 0
-        if msg == '':
-            msg = 'From Date Time'
-        else:
-            msg += ' and From Date Time'
-        link = 'frdate'
-    else:
-        try:
-            dt_2 = datetime(year=int(v2[:4]), month=int(v2[4:6]), day=int(v2[6:8]), hour=int(v2[8:10]), minute=int(v2[10:12]))
-            dt_chk = 1
-        except:
-            dt_chk = 0
-            if msg == '':
-                msg = 'To Date Time'
-            else:
-                msg += ' and To Date Time'
-            link = 'todate'
+        db.close()
 
 
-    if gnm_chk and dt_chk and not (v1 == v2):
-        return (1, msg, link)
-    else:
-        return (0, msg, link)
 
-data, name_list = graph('BTCUSDT', 'min15')
+
+
+data, name_list = graph('BTCUSDT', 'min5')
 fig = go.Figure(data=[go.Candlestick(x=name_list,
                         open=data['Open'], high=data['High'],
                         low=data['Low'], close=data['Close'],
@@ -301,27 +221,28 @@ fig = go.Figure(data=[go.Candlestick(x=name_list,
 fig.update_layout(height=700,)
 
 options = symbol_load()
-
+# tline_opt = tline_load(0)
+# trd_inst_tline_opt = tline_load(1)
 
 VALID_USERNAME_PASSWORD_PAIRS = {
-    u_id : u_pw
+    'hello': 'world'
 }
 
 # external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-external_stylesheets = 'https://codepen.io/chriddyp/pen/bWLwgP.css'
-app = Dash(__name__, external_stylesheets=[external_stylesheets, ])
-# app = Dash(external_stylesheets=[external_stylesheets, dbc.themes.BOOTSTRAP])
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css', 'bWLwgP.css']
+app = Dash(__name__, external_stylesheets=external_stylesheets)
+
 auth = BasicAuth(
     app,
     VALID_USERNAME_PASSWORD_PAIRS
 )
 
-app.title = title
 app.layout = html.Div([
     # dcc.Graph(figure=fig),
     
     html.Div(
         [
+            #html.Label('asdf', style={'display':'inline-block', 'vertical-align':'middle'}),
             html.Div([
             html.Div([
                 dcc.Dropdown(
@@ -338,18 +259,18 @@ app.layout = html.Div([
                 },
             ),
             html.Div([
-                dcc.Dropdown(
-                    id='rods',
-                    options=[
-                        {'label': '5 minutes', 'value': 'min5'},
-                        {'label': '15 minutes', 'value': 'min15'},
-                        {'label': '30 minutes', 'value': 'min30'},
-                        {'label': '1 hours', 'value': 'hour1'},
-                        {'label': '4 hours', 'value': 'hour4'},
-                        {'label': '1 day', 'value': 'day1'},
-                    ],
-                    value='min15',
-                ),
+            dcc.Dropdown(
+                id='rods',
+                options=[
+                    {'label': '5 minutes', 'value': 'min5'},
+                    {'label': '15 minutes', 'value': 'min15'},
+                    {'label': '30 minutes', 'value': 'min30'},
+                    {'label': '1 hours', 'value': 'hour1'},
+                    {'label': '4 hours', 'value': 'hour4'},
+                    {'label': '1 day', 'value': 'day1'},
+                ],
+                value='min5',
+            ),
             ],
                 style={
                     'display':'inline-block',
@@ -357,19 +278,28 @@ app.layout = html.Div([
                     'vertical-align':'middle'
                 }
             ),
+            html.Div([
+                html.Button('Submit', id='chg_button'),
+            ],
+                style={
+                    'display':'inline-block',
+                    'vertical-align':'middle'
+                }
+            ),
             ]),
-            html.Div([dcc.Interval(id='graph-update', interval=1*295000)]),
+            html.Div([dcc.Interval(id='graph-update', interval=1*280000)]),
             dcc.Loading(
             id="loading-1",
             children=[html.Div(id='figure-container', children=[dcc.Graph(figure=fig)])],
             type="circle"),
-        ],
+            # html.Button(id="input-1", children='Input triggers nested spinner')
+        ], # style={'width': 400}
     ),
 
     # tline isnert
     html.Div([  
                 html.Div([ 
-                        dcc.Input(id='frdate', type='number', placeholder='From Date', style={'margin-right':'5px', 'width':'48%'}), 
+                        dcc.Input(id='frdate', type='number', placeholder='from date 202005192000', style={'margin-right':'5px', 'width':'48%'}), 
                         dcc.Input(id='frprice', type='number', placeholder='0.00', style={'width':'49%'}), 
                     ],
                     style={
@@ -377,7 +307,7 @@ app.layout = html.Div([
                     }
                 ),
                 html.Div([
-                        dcc.Input(id='todate', type='number', placeholder='To Date', style={'margin-right':'5px', 'width':'48%'}), 
+                        dcc.Input(id='todate', type='number', placeholder='to date 202005202000', style={'margin-right':'5px', 'width':'48%'}), 
                         dcc.Input(id='toprice', type='number', placeholder='0.00', style={'width':'49%'}), 
                     ],
                     style={
@@ -423,7 +353,7 @@ app.layout = html.Div([
             children=[
                 dcc.Dropdown(
                     id='trd_inst_timing_cmb',
-                    options=[{'label': '상향돌파(매수)', 'value':'breakthrough'},{'label': '하향돌파(매도)', 'value':'downwdbreak'},],
+                    options=[{'label': '상향돌파', 'value':'breakthrough'},{'label': '하향돌파', 'value':'downwdbreak'},],
                     value='breakthrough',
                 ),
             ],
@@ -433,20 +363,20 @@ app.layout = html.Div([
                 'width':'16%',
             }
         ),
-        # html.Div(
-        #     children=[
-        #         dcc.Dropdown(
-        #             id='trd_inst_tdtype_cmb',
-        #             options=[{'label': '매수', 'value':'buy'},{'label': '매도', 'value':'sell'},],
-        #             value='buy',
-        #         ),
-        #     ],
-        #     style={
-        #         'padding':'10px 5px 10px 0',
-        #         'display':'inline-block',
-        #         'width':'16%',
-        #     }
-        # ),
+        html.Div(
+            children=[
+                dcc.Dropdown(
+                    id='trd_inst_tdtype_cmb',
+                    options=[{'label': '매수', 'value':'buy'},{'label': '매도', 'value':'sell'},],
+                    value='buy',
+                ),
+            ],
+            style={
+                'padding':'10px 5px 10px 0',
+                'display':'inline-block',
+                'width':'16%',
+            }
+        ),
         html.Div(
             children=[
                 dcc.Dropdown(
@@ -462,14 +392,13 @@ app.layout = html.Div([
             }
         ),
         html.Div([ 
-                dcc.Input(id='slippage', type='number', disabled='disabled', placeholder='Slippage', style={'margin-right':'1%','width':'35%'}), 
-                dcc.Input(id='qty1', type='number', placeholder='Qty of BTC', style={'margin-right':'1%','width':'35%'}), 
-                html.Button('Send', id='td_button', style={'width':'28%'}),  
+                dcc.Input(id='qty1', type='number', placeholder='Quantity of trading', style={'margin-right':'1%','width':'60%'}), 
+                html.Button('Send', id='td_button', style={'width':'37.5%'}),  
             ],
             style={
                 'padding':'10px 5px 10px',
                 'display':'inline-block',
-                'width':'47.5%',
+                'width':'31%',
                 'float':'right',
             }
         ),
@@ -495,7 +424,23 @@ app.layout = html.Div([
                 # 'height':'30px'
                 'padding':'5px'
             }),
-            html.Div(id='trd_detail_list', children=[])
+            html.Div(id='trd_detail_list', children=[
+                # dash_table.DataTable(
+                #     id='open-rows-table',
+                #     columns=[{
+                #         'name': 'Column {}'.format(i),
+                #         'id': 'column-{}'.format(i),
+                #         'deletable': True,
+                #         'renamable': True
+                #     } for i in range(1, 5)],
+                #     data=[
+                #         {'column-{}'.format(i): (j + (i-1)*5) for i in range(1, 5)}
+                #         for j in range(5)
+                #     ],
+                #     editable=True,
+                #     row_deletable=True
+                # ),
+            ])
         ],
         style={
             'margin-right':'2%',
@@ -546,64 +491,38 @@ app.layout = html.Div([
             'height':'55px'
         }
     ),
+    
+    html.H2(id='show-output', children=''),
+    html.Button('press to show username', id='logout_button')
 
-    html.Div(id='hidden_div',children=[]),
-    html.Div(id='alert_div',children=[]),
-
+    # html.Div(id='hidden_div',children='')
 ])
 
+
+@app.callback(
+    Output(component_id='show-output', component_property='children'),
+    [Input(component_id='logout_button', component_property='n_clicks')]
+)
+def update_output_div(n_clicks):
+    # request.authorization['username']
+    # print(request.headers.get('Authorization'))
+    # request.authorization.pop('username')
+    s = requests.session()
+
+    s.cookies.clear()
+    print(s.cookies.keys())
+    request.authorization.clear()
+    print(request.authorization.keys())
+
+# app.scripts.config.serve_locally = True
 
 ################
 ### callback ###
 ################
 
 @app.callback(
-    Output("alert_div", "children"),
-    [Input("button", "n_clicks")],
-    [State('gname', 'value'),
-     State('frdate', 'value'),
-     State('todate', 'value'),
-     State('symbol', 'value'), State('rods','value'),
-    ]
-)
-def toggle_alert(n, gname, v1, v3, sbl, rod):
-    ctx = callback_context
-    if ctx.triggered[0]['value'] is None:
-        button_id = 'No clicks yet'
-    else:
-        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-
-    chk, msg, link = insert_check(sbl, rod, str(v1), str(v3), gname)
-
-    if (chk == 1 and button_id == 'button') or (chk != 1 and button_id != 'button'):
-        return []
-    return  dbc.Alert(
-                [
-                    "Error !!!! ",
-                    html.A(msg, className="alert-link", style={'color':'brown'}),
-                ],
-                id="alert-auto",
-                is_open=True,
-                duration=4000,
-                color="danger",
-                style={
-                    'padding':'10px',
-                    'width':'500px',
-                    'height':'30px',
-                    'position':'fixed',
-                    'bottom':'25px',
-                    'left':'25px',
-                    'background-color': 'pink',
-                    'padding-left':'30px',
-                    'font-size':'18px',
-                    'border-radius':'10px',
-                    'color':'brown'
-                }
-            ),
-
-@app.callback(
     Output('figure-container', 'children'),
-    [Input('button', 'n_clicks'), Input('symbol', 'value'), Input('rods', 'value'), Input('del_button', 'n_clicks'), Input('graph-update', 'n_intervals')],
+    [Input('button', 'n_clicks'), Input('chg_button', 'n_clicks'), Input('del_button', 'n_clicks'), Input('graph-update', 'n_intervals')],
     [State('is_extension','value'),State('gname', 'value'),
      State('frdate', 'value'), State('frprice', 'value'),
      State('todate', 'value'), State('toprice', 'value'),
@@ -611,58 +530,59 @@ def toggle_alert(n, gname, v1, v3, sbl, rod):
      State('tsbl', 'value')
     ]
 )
-def update_output(button, symbol, rods, del_button, n_intervals, is_extension, gname, v1, v2, v3, v4, sbl, rod, tsbl):
+def update_output(button, chg_button, del_button, n_intervals, is_extension, gname, v1, v2, v3, v4, sbl, rod, tsbl):
     ctx = callback_context
     if ctx.triggered[0]['value'] is None:
         button_id = 'No clicks yet'
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
-    chk, msg, link = insert_check(sbl, rod, str(v1), str(v3), gname)
+    if button_id == 'button':
+    
+        if not v1 or not v2 or not v3 or not v4:
+            pass
+        else:
+            data, name_list = graph(sbl, rod)
+            fig2 = go.Figure(data=[go.Candlestick(x=name_list,
+                                open=data['Open'], high=data['High'],
+                                low=data['Low'], close=data['Close'],
+                                )],
+                             layout={'title':sbl+' / '+rod},
+                            )
+            fig2.update_layout(height=700,)
+            # trand line insert
+            try:
+                ext = int(is_extension[0])
+            except:
+                ext = 0
+            tline_insert(sbl, rod, gname, str(v1), v2, str(v3), v4, ext)
+            # query trand line
+            rows = tline_query(sbl, rod)
 
-    if button_id == 'button' and not (not v1 or not v2 or not v3 or not v4 or not gname) and chk == 1:
-        
-        data, name_list = graph(sbl, rod)
-        fig2 = go.Figure(data=[go.Candlestick(x=name_list,
-                            open=data['Open'], high=data['High'],
-                            low=data['Low'], close=data['Close'],
-                            )],
-                            layout={'title':sbl+' / '+rod},
-                        )
-        fig2.update_layout(height=700,)
-        # trand line insert
-        try:
-            ext = int(is_extension[0])
-        except:
-            ext = 0
-        tline_insert(sbl, rod, gname, str(v1), v2, str(v3), v4, ext)
-        # query trand line
-        rows = tline_query(sbl, rod)
+            for row in rows:
+                frdate = row[3]
+                todate = row[5]
+                frprice = row[4]
+                toprice = row[6]
 
-        for row in rows:
-            frdate = row[3]
-            todate = row[5]
-            frprice = row[4]
-            toprice = row[6]
+                if row[7] == 1:
+                    if 'min' in rod:
+                        todt = time.strftime('%Y%m%d%H')
+                    elif 'hour' in rod:
+                        todt = time.strftime('%Y%m%d')
+                    else:
+                        todt = time.strftime('%Y%m')
 
-            if row[7] == 1:
-                if 'min' in rod:
-                    todt = time.strftime('%Y%m%d%H')
-                elif 'hour' in rod:
-                    todt = time.strftime('%Y%m%d')
+                    xs, ys = ext_tline_query(frdate, todate, frprice, toprice, rod, todt)
+
                 else:
-                    todt = time.strftime('%Y%m')
-
-                xs, ys = ext_tline_query(frdate, todate, frprice, toprice, rod, todt)
-
-            else:
-                xs = [datetime(year=int(frdate[:4]), month=int(frdate[4:6]), day=int(frdate[6:8]), hour=int(frdate[8:10]), minute=int(frdate[10:12])),
-                        datetime(year=int(todate[:4]), month=int(todate[4:6]), day=int(todate[6:8]), hour=int(todate[8:10]), minute=int(todate[10:12]))]
-                ys = [row[4], row[6]]
-            fig2.add_trace(go.Scatter(x= xs, y= ys, 
-                            mode='lines+markers',
-                            name=row[2]))
-        return dcc.Graph(figure=fig2, id='figure-1')
+                    xs = [datetime(year=int(frdate[:4]), month=int(frdate[4:6]), day=int(frdate[6:8]), hour=int(frdate[8:10]), minute=int(frdate[10:12])),
+                            datetime(year=int(todate[:4]), month=int(todate[4:6]), day=int(todate[6:8]), hour=int(todate[8:10]), minute=int(todate[10:12]))]
+                    ys = [row[4], row[6]]
+                fig2.add_trace(go.Scatter(x= xs, y= ys, 
+                                mode='lines+markers',
+                                name=row[2]))
+            return dcc.Graph(figure=fig2, id='figure-1')
     
     elif button_id == 'del_button':
         tline_delete(sbl, rod, tsbl)
@@ -742,10 +662,10 @@ def update_output(button, symbol, rods, del_button, n_intervals, is_extension, g
 
 @app.callback(
     Output('tline_list', 'children'),
-    [Input('button', 'n_clicks'), Input('symbol', 'value'), Input('rods', 'value'), Input('del_button', 'n_clicks')],
+    [Input('button', 'n_clicks'), Input('chg_button', 'n_clicks'), Input('del_button', 'n_clicks')],
     [State('symbol', 'value'), State('rods','value')]
 )
-def update_tline_list(button, symbol, rods, del_button, sbl, rod):
+def update_tline_list(button, chg_button, del_button, sbl, rod):
     time.sleep(1)
     tline_opt = tline_load(0)
     try:        
@@ -769,10 +689,10 @@ def update_tline_list(button, symbol, rods, del_button, sbl, rod):
 
 @app.callback(
     Output('trd_inst_tline_list', 'children'),
-    [Input('button', 'n_clicks'), Input('symbol', 'value'), Input('rods', 'value'), Input('del_button', 'n_clicks')],
+    [Input('button', 'n_clicks'), Input('chg_button', 'n_clicks'), Input('del_button', 'n_clicks')],
     [State('symbol', 'value'), State('rods','value')]
 )
-def update_trd_inst_tline_list(button, symbol, rods, del_button, sbl, rod):
+def update_trd_inst_tline_list(button, chg_button, del_button, sbl, rod):
     time.sleep(1)
     trd_inst_tline_opt = tline_load(1)
     try:        
@@ -795,13 +715,13 @@ def update_trd_inst_tline_list(button, symbol, rods, del_button, sbl, rod):
 
 
 @app.callback(Output('trd_detail_list', 'children'),
-            [Input('trd_tabs', 'value'), Input('symbol', 'value'), Input('rods', 'value'), Input('td_button', 'n_clicks')],
+            [Input('trd_tabs', 'value'), Input('chg_button', 'n_clicks'), Input('td_button', 'n_clicks')],
             [
                 State('symbol', 'value'), State('rods','value'),
-                State('trd_inst_tline_list_cmb', 'value'), State('trd_inst_timing_cmb','value'), #State('trd_inst_tdtype_cmb', 'value'), 
-                State('trd_inst_pctype_cmb','value'), State('slippage','value'), State('qty1','value'),
+                State('trd_inst_tline_list_cmb', 'value'), State('trd_inst_timing_cmb','value'), State('trd_inst_tdtype_cmb', 'value'), 
+                State('trd_inst_pctype_cmb','value'), State('qty1','value'),
             ])
-def render_content(tab, symbol, rods, btn, sbl, rod, gname, timing, pctype, slippage, qty):
+def render_content(tab, chg_btn, btn, sbl, rod, gname, timing, tdtype, pctype, qty):
     ctx = callback_context
     if ctx.triggered[0]['value'] is None:
         button_id = 'No clicks yet'
@@ -809,7 +729,7 @@ def render_content(tab, symbol, rods, btn, sbl, rod, gname, timing, pctype, slip
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     # if td_button (insert)
     if button_id == 'td_button':
-        trading_insert(sbl, rod, gname, timing, slippage, pctype, qty)
+        trading_insert(sbl, rod, gname, timing, tdtype, pctype, qty)
         time.sleep(1)
 
     if tab == 'open_tab':
@@ -821,7 +741,6 @@ def render_content(tab, symbol, rods, btn, sbl, rod, gname, timing, pctype, slip
                         {'name': 'Timing', 'id': 'tm',},
                         {'name': 'Buy/Sell', 'id': 'bs',},
                         {'name': 'Limit/Market', 'id': 'lm',},
-                        {'name': 'Slippage', 'id': 'sp',},
                         {'name': 'Quantity', 'id': 'qt',},
                         {'name': 'orderId', 'id': 'num',},
                     ],
@@ -838,7 +757,6 @@ def render_content(tab, symbol, rods, btn, sbl, rod, gname, timing, pctype, slip
                         {'name': 'Timing', 'id': 'tm',},
                         {'name': 'Buy/Sell', 'id': 'bs',},
                         {'name': 'Limit/Market', 'id': 'lm',},
-                        {'name': 'Slippage', 'id': 'sp',},
                         {'name': 'Quantity', 'id': 'qt',},
                         {'name': 'orderId', 'id': 'num',},
                     ],
@@ -861,7 +779,6 @@ def display_output(open_rows, sbl, rod):
 if __name__ == '__main__':
     # For Development only, otherwise use gunicorn or uwsgi to launch, e.g.
     # gunicorn -b 0.0.0.0:8050 index:app.server
-
     app.run_server(
         port=port,
         host='0.0.0.0',

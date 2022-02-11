@@ -21,11 +21,11 @@ import dash_bootstrap_components as dbc
 # DB connect function
 def db_con():
     db = pymysql.connect(
-        host=host,
-        user=user,
-        password=password,
+        host='192.168.0.112',
+        user='sslee',
+        password='rhddbtjqj',
         charset='utf8mb4',
-        database=database,
+        database='sslee_DB',
     )
     return db
 

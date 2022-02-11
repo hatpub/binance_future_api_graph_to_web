@@ -13,6 +13,9 @@ dash-core-components = "*"
 dash-auth = "*"
 dash-table = "*"
 pymysql = "*"
+requests = "*"
+flask = "*"
+dash-bootstrap-components = "*"
 
 [requires]
 python_version = "3.6"

@@ -2,14 +2,21 @@ import plotly.graph_objects as go
 from datetime import datetime
 from dash import Dash, callback_context
 from dash_auth import BasicAuth
-from dash_table import DataTable
-import dash_core_components as dcc
-import dash_html_components as html
+
+#from dash_table import DataTable
+from dash.dash_table import DataTable
+
+#import dash_core_components as dcc
+from dash import dcc, html, dcc
+
+#import dash_html_components as html
+#from dash import html
+
 from dash.dependencies import Input, Output, State
 import pymysql
 import time
 from data_config import *
-import dash_bootstrap_components as dbc
+#import dash_bootstrap_components as dbc
 # from flask import request, make_response
 # import requests
 #import bot

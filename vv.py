@@ -28,11 +28,11 @@ from data_config import *
 # DB connect function
 def db_con():
     db = pymysql.connect(
-        host='192.168.0.112',
-        user='sslee',
-        password='rhddbtjqj',
+        host=host,
+        user=user,
+        password=password,
         charset='utf8mb4',
-        database='sslee_DB',
+        database=database,
     )
     return db
 

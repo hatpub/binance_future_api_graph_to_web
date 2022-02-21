@@ -7,7 +7,7 @@ from dash_auth import BasicAuth
 from dash.dash_table import DataTable
 
 #import dash_core_components as dcc
-from dash import dcc, html, dcc
+from dash import html, dcc
 
 #import dash_html_components as html
 #from dash import html
@@ -157,7 +157,7 @@ def ext_tline_query(frdate, todate, frprice, toprice, rod, todt):
         to_datetime = datetime(year=int(todt[:4]), month=int(todt[4:6]), day=int(todt[6:8]), hour=thd_time)
     elif rod == 'hour4':
         per = 14400
-        thd_time = int(time.strftime('%H'))/4
+        thd_time = int(time.strftime('%H'))//4
         to_datetime = datetime(year=int(todt[:4]), month=int(todt[4:6]), day=int(todt[6:8]), hour=thd_time*4)
     else:
         per = 86400
@@ -194,7 +194,7 @@ def trading_list_query(sbl, rod, is_complete):
     row_lists = list()
 
     for row in rows:
-        row_lists.append({'gn':row[3], 'tm':row[4], 'bs':('Buy' if row[4] == 'breakthrough' else 'Sell'), 'lm':row[6], 'sp':row[10], 'qt':row[7], 'num':row[0]})
+        row_lists.append({'dt':row[8], 'gn':row[3], 'tm':row[4], 'bs':('Buy' if row[4] == 'breakthrough' else 'Sell'), 'lm':row[6], 'sp':row[10], 'qt':row[7], 'num':row[0]})
 
     return row_lists
 
@@ -502,7 +502,7 @@ app.layout = html.Div([
                 # 'height':'30px'
                 'padding':'5px'
             }),
-            html.Div(id='trd_detail_list', children=[])
+            html.Div(id='trd_detail_list', children=[], style={'textAlign':'center'})
         ],
         style={
             'margin-right':'2%',
@@ -824,6 +824,7 @@ def render_content(tab, symbol, rods, btn, sbl, rod, gname, timing, pctype, slip
         return DataTable(
                     id='open-rows-table',
                     columns=[
+                        {'name': 'DateTime', 'id': 'dt',},
                         {'name': 'Graph Name', 'id': 'gn',},
                         {'name': 'Timing', 'id': 'tm',},
                         {'name': 'Buy/Sell', 'id': 'bs',},
@@ -841,6 +842,7 @@ def render_content(tab, symbol, rods, btn, sbl, rod, gname, timing, pctype, slip
         return DataTable(
                     id='history-rows-table',
                     columns=[
+                        {'name': 'DateTime', 'id': 'dt',},
                         {'name': 'Graph Name', 'id': 'gn',},
                         {'name': 'Timing', 'id': 'tm',},
                         {'name': 'Buy/Sell', 'id': 'bs',},
